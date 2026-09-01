@@ -1,0 +1,27 @@
+name: 🚀 Trigger Render Deploy
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/**"
+      - "render.yaml"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  deploy:
+    name: Trigger Render Redeploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy via Render Deploy Hook
+        run: |
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Triggering Render deploy via deploy hook..."
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL")
+            echo "Render deploy hook response: HTTP $RESPONSE"
+          else
+            echo "ℹ️ RENDER_DEPLOY_HOOK_URL secret not set."
+            echo "Render automatically deploys when main is updated via Render GitHub App integration."
+          fi
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}

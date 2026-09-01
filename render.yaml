@@ -1,0 +1,29 @@
+services:
+  # ── Backend API Service (Render Web Service) ──────────────────────────────
+  - type: web
+    name: hrcv-backend
+    env: python
+    rootDir: backend
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      # Production frontend URL for CORS allowlist.
+      # Add comma-separated origins if you have additional frontends.
+      - key: ALLOWED_ORIGINS
+        value: "https://tonyaicv.netlify.app"
+      # Used by the keep-alive self-ping task inside main.py.
+      - key: RENDER_EXTERNAL_URL
+        value: "https://ml-project-cv-analysis.onrender.com"
+      # Environment label surfaced in /health response.
+      - key: RENDER_ENV
+        value: "production"
+    healthCheckPath: /health
+    autoDeploy: true

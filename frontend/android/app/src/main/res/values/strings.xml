@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">HRCV</string>
+    <string name="title_activity_main">HRCV</string>
+    <string name="package_name">com.priyaranjan.hrcv</string>
+    <string name="custom_url_scheme">com.priyaranjan.hrcv</string>
+</resources>

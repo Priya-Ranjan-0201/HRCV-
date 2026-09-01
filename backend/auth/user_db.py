@@ -1,0 +1,204 @@
+import os
+import sqlite3
+from datetime import datetime, timedelta
+
+_default_db_path = os.path.join(os.path.dirname(__file__), "users.db")
+DATABASE_PATH = os.getenv("DB_PATH", _default_db_path)
+DB_PATH = DATABASE_PATH
+
+
+def get_connection():
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    """Initialize the database and create tables if they don't exist."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            hashed_password TEXT,
+            google_id TEXT,
+            github_id TEXT,
+            device_fingerprint TEXT NOT NULL,
+            phone TEXT,
+            updates_enabled INTEGER DEFAULT 1,
+            failed_attempts INTEGER DEFAULT 0,
+            locked_until TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_login TEXT
+        )
+    """
+    )
+    # Column migration safety checks
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN updates_enabled INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN github_id TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    conn.commit()
+    conn.close()
+    print("[OK] Auth database initialized.")
+
+
+def create_user(
+    email: str,
+    name: str,
+    hashed_password: str,
+    device_fingerprint: str,
+    google_id: str = None,
+    github_id: str = None,
+    phone: str = None,
+    updates_enabled: int = 1,
+):
+    """Create a new user. Returns the created user dict or None on duplicate."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT INTO users (email, name, hashed_password, google_id, github_id, device_fingerprint, phone, updates_enabled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                email,
+                name,
+                hashed_password,
+                google_id,
+                github_id,
+                device_fingerprint,
+                phone,
+                updates_enabled,
+            ),
+        )
+        conn.commit()
+        return get_user_by_email(email)
+    except sqlite3.IntegrityError:
+        return None
+    finally:
+        conn.close()
+
+
+def get_user_by_email(email: str):
+    """Fetch a user by email. Returns dict or None."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE email = ?", (email,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_google_id(google_id: str):
+    """Fetch a user by Google ID. Returns dict or None."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE google_id = ?", (google_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_github_id(github_id: str):
+    """Fetch a user by GitHub ID. Returns dict or None."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE github_id = ?", (github_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_last_login(email: str):
+    """Update last login timestamp and reset failed attempts."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET last_login = ?, failed_attempts = 0, locked_until = NULL WHERE email = ?",
+        (datetime.utcnow().isoformat(), email),
+    )
+    conn.commit()
+    conn.close()
+
+
+def increment_failed_attempts(email: str) -> int:
+    """Atomically increment failed login attempts and lock after 5 failures.
+
+    Returns the updated failed_attempts count (0 if the user row is missing).
+    """
+    conn = get_connection()
+    try:
+        c = conn.cursor()
+        c.execute("BEGIN IMMEDIATE")
+        locked_until = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        c.execute(
+            """
+            UPDATE users
+            SET failed_attempts = failed_attempts + 1,
+                locked_until = CASE
+                    WHEN failed_attempts + 1 >= 5 THEN ?
+                    ELSE locked_until
+                END
+            WHERE email = ?
+            """,
+            (locked_until, email),
+        )
+        c.execute("SELECT failed_attempts FROM users WHERE email = ?", (email,))
+        row = c.fetchone()
+        conn.commit()
+        return int(row[0]) if row else 0
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def reset_failed_attempts(email: str):
+    """Clear failed attempts and unlock account."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE email = ?",
+        (email,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_device_fingerprint(email: str, new_fingerprint: str):
+    """Update device fingerprint (admin or re-register flow)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET device_fingerprint = ? WHERE email = ?",
+        (new_fingerprint, email),
+    )
+    conn.commit()
+    conn.close()
+
+
+def link_google_account(email: str, google_id: str, device_fingerprint: str):
+    """Link Google ID to an existing user email and update device fingerprint."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET google_id = ?, device_fingerprint = ?, failed_attempts = 0, locked_until = NULL WHERE email = ?",
+        (google_id, device_fingerprint, email),
+    )
+    conn.commit()
+    conn.close()

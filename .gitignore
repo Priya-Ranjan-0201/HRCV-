@@ -1,0 +1,75 @@
+# Operating Systems
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+
+# Dependencies
+node_modules/
+node_modules_bak/
+vendor/
+
+# Build & Bundler outputs
+dist/
+build/
+out/
+.vite_cache/
+frontend/.dist/
+**/dist/
+
+# Python
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+*.pem
+*.key
+*.cert
+*.jks
+*.keystore
+release-key.jks
+frontend/android/app/release-key.jks
+
+# Databases & Runtime State
+*.db
+*.sqlite
+*.sqlite3
+backend/auth/*.db
+backend/auth/*.sqlite
+
+# Machine Learning Artifacts (generated at runtime, never committed)
+backend/ml_pipeline/model.pkl
+backend/ml_pipeline/models/*.joblib
+backend/ml_pipeline/models/*.pkl
+*.pkl
+*.joblib
+*.onnx
+
+# Logs & Test Reports
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+playwright-report/
+test-results/
+
+# Android Local & Build Caches
+frontend/android/.gradle/
+frontend/android/build/
+frontend/android/app/build/
+frontend/android/local.properties
+frontend/android/captures/
+frontend/android/.idea/
